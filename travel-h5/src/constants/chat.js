@@ -1,0 +1,4 @@
+export const SCROLL_BOTTOM_THRESHOLD = 80
+export const SCROLL_THROTTLE_MS = 100
+export const AUTO_SCROLL_THROTTLE_MS = 80
+export const SCROLL_UP_DELTA_MIN = 5
