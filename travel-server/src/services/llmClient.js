@@ -22,8 +22,7 @@ export function createLLM() {
     apiKey: apikey,
     configuration: { baseURL },
     model,
-    temperature: 0.9,
-    streaming: true,
+    temperature: 0.4,
     timeout: Number(process.env.LLM_TIMEOUT_MS) || 120_000,
   })
 }

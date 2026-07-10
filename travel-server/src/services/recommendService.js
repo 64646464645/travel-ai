@@ -4,14 +4,16 @@ import { z } from "zod"
 
 // ========== Zod 数据模型 ==========
 
+/** 单日活动（上午/下午/晚上） */
 const DailyActivitySchema = z.object({
-  spot: z.string(),
-  duration: z.string(),
-  ticket: z.string(),
-  transportation: z.string(),
-  description: z.string(),
+  spot: z.string(),           // 景点名称
+  duration: z.string(),       // 游玩时长（如 "3小时"）
+  ticket: z.string(),         // 门票价格
+  transportation: z.string(), // 交通方式建议
+  description: z.string(),    // 景点描述
 })
 
+/** 一天的完整行程（早/中/晚 + 日期） */
 const DailyItinerarySchema = z.object({
   day: z.number().int().min(1),
   date: z.string(),
@@ -20,6 +22,7 @@ const DailyItinerarySchema = z.object({
   evening: DailyActivitySchema,
 })
 
+/** 预算分类明细 */
 const BudgetBreakdownSchema = z.object({
   accommodation: z.number(),
   food: z.number(),
@@ -28,6 +31,7 @@ const BudgetBreakdownSchema = z.object({
   other: z.number(),
 })
 
+/** 旅行计划顶层结构 —— 也是 withStructuredOutput 的约束 schema */
 const TravelPlanSchema = z.object({
   success: z.literal(true),
   city: z.string(),
@@ -39,55 +43,33 @@ const TravelPlanSchema = z.object({
   warnings: z.array(z.string()),
 })
 
-// ========== Zod → JSON Schema 转换 ==========
-
-function zodToJSONSchema(zodSchema) {
-  if (zodSchema instanceof z.ZodString) {
-    return { type: "string" }
-  }
-  if (zodSchema instanceof z.ZodNumber) {
-    return { type: "number" }
-  }
-  if (zodSchema instanceof z.ZodBoolean) {
-    return { type: "boolean" }
-  }
-  if (zodSchema instanceof z.ZodLiteral) {
-    return { type: typeof zodSchema.value, const: zodSchema.value }
-  }
-  if (zodSchema instanceof z.ZodArray) {
-    return { type: "array", items: zodToJSONSchema(zodSchema.element) }
-  }
-  if (zodSchema instanceof z.ZodObject) {
-    const shape = zodSchema.shape
-    const properties = {}
-    for (const key of Object.keys(shape)) {
-      properties[key] = zodToJSONSchema(shape[key])
-    }
-    return { type: "object", properties, required: Object.keys(shape) }
-  }
-  return {}
-}
-
 // ========== Service ==========
 
 class RecommendService {
   constructor() {
-    this.llm = createLLM()
-    this.travelPlanSchema = TravelPlanSchema
-    this.jsonSchemaStr = JSON.stringify(zodToJSONSchema(TravelPlanSchema), null, 2)
+    // jsonMode：使用 response_format: json_object 而非 json_schema（DeepSeek / Qwen 仅支持前者）
+    this.llm = createLLM().withStructuredOutput(TravelPlanSchema, {
+      method: "jsonMode",
+    })
   }
 
+  /**
+   * 生成旅行推荐
+   * @param {string} city   - 目的地城市
+   * @param {number} budget - 总预算（元）
+   * @param {number} days   - 旅行天数
+   */
   async recommend(city, budget, days) {
     if (budget < 100 || days < 1 || days > 30) {
       throw new Error('预算不能低于100，天数必须在1到30天之间')
     }
 
-    const message = this.getTravelPrompt(city, budget, days)
+    const messages = this.getTravelPrompt(city, budget, days)
 
     try {
-      const response = await this.llm.invoke(message)
-      const fullResponse = response.content || ''
-      return this.parseJSONResponse(fullResponse)
+      // invoke 返回的结构已由 withStructuredOutput 完成解析和 Zod 校验
+      const result = await this.llm.invoke(messages)
+      return result
     } catch (error) {
       return {
         success: false,
@@ -96,55 +78,43 @@ class RecommendService {
     }
   }
 
-  parseJSONResponse(fullResponse) {
-    try {
-      const jsonMatch = fullResponse.match(/```json\n([\s\S]*?)\n```/) ||
-        fullResponse.match(/```\n([\s\S]*?)\n```/) ||
-        fullResponse.match(/\{[\s\S]*\}/)
-
-      const parsed = JSON.parse(jsonMatch[1])
-
-      // Zod 校验
-      const result = this.travelPlanSchema.safeParse(parsed)
-      if (!result.success) {
-        return {
-          success: false,
-          error: "数据格式校验失败",
-          validationErrors: result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`)
-        }
-      }
-
-      return result.data
-    } catch (error) {
-      return {
-        success: false,
-        error: "JSON解析失败",
-        rawResponse: error.message
-      }
-    }
-  }
-
+  /** 构造给 LLM 的 prompt */
   getTravelPrompt(city, budget, days) {
     return [
       new HumanMessage(
-        `你是一个专业的旅游规划师，擅长根据用户的需求生成详细的旅行行程。
+        `你是一个专业的旅游规划师，请根据以下信息生成一份详细的${days}天${city}旅行规划：
 
-请根据以下信息为用户生成一份详细的旅游规划：
-- 目的地城市：${city}
 - 预算：${budget}元
-- 旅行天数：${days}天
+- 天数：${days}天
 
-要求：
-1. 每天的行程安排（上午、下午、晚上）
-2. 每个景点的详细介绍
-3. 交通建议
-4. 预算分配明细
-5. 注意事项
+请严格按照以下 JSON 结构返回（字段名不可更改）：
 
-请严格按照以下 JSON Schema 规定的格式输出 JSON，不要添加任何多余字段：
-${this.jsonSchemaStr}
+{
+  "success": true,
+  "city": "${city}",
+  "days": ${days},
+  "totalBudget": ${budget},
+  "dailyItinerary": [
+    {
+      "day": 1,
+      "date": "日期",
+      "morning": { "spot": "景点", "duration": "时长", "ticket": "票价", "transportation": "交通", "description": "描述" },
+      "afternoon": { "spot": "...", "duration": "...", "ticket": "...", "transportation": "...", "description": "..." },
+      "evening": { "spot": "...", "duration": "...", "ticket": "...", "transportation": "...", "description": "..." }
+    }
+  ],
+  "budgetBreakdown": {
+    "accommodation": 0,
+    "food": 0,
+    "transportation": 0,
+    "tickets": 0,
+    "other": 0
+  },
+  "tips": ["贴士1", "贴士2"],
+  "warnings": ["注意事项1", "注意事项2"]
+}
 
-请确保 JSON 格式正确，可以直接被 JSON.parse 解析。`
+请以 JSON 格式返回，不要包含 markdown 代码块标记。`
       ),
     ]
   }
