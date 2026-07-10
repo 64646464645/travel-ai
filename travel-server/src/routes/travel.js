@@ -1,5 +1,6 @@
 import express from 'express';
-import travelService from '../services/travelService.js';
+import recommendService from '../services/recommendService.js';
+import chatService from '../services/chatService.js';
 import { createStreamResponse } from '../utils/streamUtils.js';
 const router = express.Router();
 
@@ -15,7 +16,7 @@ router.post('/recommend', async (req, res) => {
   }
 
   try {
-    const result = await travelService.recommend(city, budget, days)
+    const result = await recommendService.recommend(city, budget, days)
     return res.json(result)
   } catch (err) {
     console.error('推荐接口错误', err)
@@ -48,7 +49,7 @@ router.post('/chat', async (req, res) => {
   const stream = createStreamResponse(res)
 
 
-  const result = await travelService.chat(message, (chunk) => {
+  const result = await chatService.chat(message, (chunk) => {
     stream.send({ type: 'chunk', content: chunk})
   })
   stream.send({ type: 'end', content: result})
