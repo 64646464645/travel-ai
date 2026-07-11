@@ -1,11 +1,11 @@
 {
   "watch": ["src"],
-  "ext": "js,json",
+  "ext": "ts,json",
   "ignore": [
     "node_modules",
     "dist",
     "public",
     ".git"
-  ]
-
+  ],
+  "exec": "tsx src/index.ts"
 }

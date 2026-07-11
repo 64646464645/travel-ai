@@ -6,11 +6,11 @@ import { z } from "zod"
 
 /** 单日活动（上午/下午/晚上） */
 const DailyActivitySchema = z.object({
-  spot: z.string(),           // 景点名称
-  duration: z.string(),       // 游玩时长（如 "3小时"）
-  ticket: z.string(),         // 门票价格
-  transportation: z.string(), // 交通方式建议
-  description: z.string(),    // 景点描述
+  spot: z.string(),
+  duration: z.string(),
+  ticket: z.string(),
+  transportation: z.string(),
+  description: z.string(),
 })
 
 /** 一天的完整行程（早/中/晚 + 日期） */
@@ -31,7 +31,7 @@ const BudgetBreakdownSchema = z.object({
   other: z.number(),
 })
 
-/** 旅行计划顶层结构 —— 也是 withStructuredOutput 的约束 schema */
+/** 旅行计划顶层结构 */
 const TravelPlanSchema = z.object({
   success: z.literal(true),
   city: z.string(),
@@ -43,11 +43,19 @@ const TravelPlanSchema = z.object({
   warnings: z.array(z.string()),
 })
 
+// ========== 导出类型 ==========
+
+export type TravelPlan = z.infer<typeof TravelPlanSchema>
+export type DailyItinerary = z.infer<typeof DailyItinerarySchema>
+export type DailyActivity = z.infer<typeof DailyActivitySchema>
+export type BudgetBreakdown = z.infer<typeof BudgetBreakdownSchema>
+
 // ========== Service ==========
 
 class RecommendService {
+  private llm: ReturnType<ReturnType<typeof createLLM>['withStructuredOutput']>
+
   constructor() {
-    // jsonMode：使用 response_format: json_object 而非 json_schema（DeepSeek / Qwen 仅支持前者）
     this.llm = createLLM().withStructuredOutput(TravelPlanSchema, {
       method: "jsonMode",
     })
@@ -55,11 +63,8 @@ class RecommendService {
 
   /**
    * 生成旅行推荐
-   * @param {string} city   - 目的地城市
-   * @param {number} budget - 总预算（元）
-   * @param {number} days   - 旅行天数
    */
-  async recommend(city, budget, days) {
+  async recommend(city: string, budget: number, days: number): Promise<TravelPlan | { success: false; error: string }> {
     if (budget < 100 || days < 1 || days > 30) {
       throw new Error('预算不能低于100，天数必须在1到30天之间')
     }
@@ -67,19 +72,18 @@ class RecommendService {
     const messages = this.getTravelPrompt(city, budget, days)
 
     try {
-      // invoke 返回的结构已由 withStructuredOutput 完成解析和 Zod 校验
       const result = await this.llm.invoke(messages)
-      return result
+      return result as TravelPlan
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: (error as Error).message
       }
     }
   }
 
   /** 构造给 LLM 的 prompt */
-  getTravelPrompt(city, budget, days) {
+  private getTravelPrompt(city: string, budget: number, days: number): HumanMessage[] {
     return [
       new HumanMessage(
         `你是一个专业的旅游规划师，请根据以下信息生成一份详细的${days}天${city}旅行规划：

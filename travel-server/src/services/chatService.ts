@@ -1,12 +1,22 @@
 import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { createLLM } from "./llmClient.js"
 
+export type StreamCallback = (chunk: string) => void
+
+export interface ChatResult {
+  success: boolean
+  reply?: string
+  error?: string
+}
+
 class ChatService {
+  private llm: ReturnType<typeof createLLM>
+
   constructor() {
     this.llm = createLLM()
   }
 
-  async chat(message, streamCallback) {
+  async chat(message: string, streamCallback?: StreamCallback): Promise<ChatResult> {
     const messages = [
       new SystemMessage('你是一个友好的旅游助手，请用中文回答用户关于旅游的问题'),
       new HumanMessage(message)
@@ -15,16 +25,16 @@ class ChatService {
     try {
       const stream = await this.llm.stream(messages)
       let fullResponse = ''
+
       for await (const chunk of stream) {
-        const content = chunk.content || ''
+        const content = (chunk.content as string) || ''
         if (content.trim() === '') {
           continue
         }
         fullResponse += content
-        if (streamCallback) {
-          streamCallback(content)
-        }
+        streamCallback?.(content)
       }
+
       return {
         success: true,
         reply: fullResponse
@@ -32,7 +42,7 @@ class ChatService {
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: (error as Error).message
       }
     }
   }

@@ -1,25 +1,30 @@
 import { ChatOpenAI } from "@langchain/openai"
 
-export function createLLM() {
-  const provider = process.env.PROVIDER
+type Provider = "DEEPSEEK" | "QWEN"
 
-  let apikey, baseURL, model
+export function createLLM(): ChatOpenAI {
+  const provider = process.env.PROVIDER as Provider | undefined
+
+  let apiKey: string | undefined
+  let baseURL: string | undefined
+  let model: string | undefined
+
   if (provider === "DEEPSEEK") {
-    apikey = process.env.DEEPSEEK_API_KEY
+    apiKey = process.env.DEEPSEEK_API_KEY
     baseURL = process.env.DEEPSEEK_BASE_URL
     model = process.env.DEEPSEEK_MODEL
   } else if (provider === "QWEN") {
-    apikey = process.env.QWEN_API_KEY
+    apiKey = process.env.QWEN_API_KEY
     baseURL = process.env.QWEN_BASE_URL
     model = process.env.QWEN_MODEL
   }
 
-  if (!apikey) {
+  if (!apiKey) {
     throw new Error(`未找到 ${provider ?? '未知'} 提供商的 API Key，请检查 .env 中 PROVIDER 与对应密钥配置`)
   }
 
   return new ChatOpenAI({
-    apiKey: apikey,
+    apiKey,
     configuration: { baseURL },
     model,
     temperature: 0.4,
