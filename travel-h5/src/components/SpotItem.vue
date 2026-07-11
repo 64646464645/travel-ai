@@ -1,6 +1,6 @@
 <template>
   <div class="spot-item" v-if="data">
-    <div class="spot-name">{{ data.spot || data.name || '待定' }}</div>
+    <div class="spot-name">{{ data.spot || '待定' }}</div>
     <div class="spot-details" v-if="data.duration || data.ticket || data.transportation">
       <div class="detail-row" v-if="data.duration">
         <van-icon name="clock-o" size="14" />
@@ -22,13 +22,12 @@
   </div>
 </template>
 
-<script setup>
-defineProps({
-  data: {
-    type: Object,
-    default: () => ({})
-  }
-})
+<script setup lang="ts">
+import type { DailyActivity } from '../types'
+
+defineProps<{
+  data?: DailyActivity
+}>()
 </script>
 
 <style scoped>

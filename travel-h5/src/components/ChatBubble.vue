@@ -10,15 +10,13 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
+import type { ChatMessage } from '../types'
 
-const props = defineProps({
-  message: {
-    type: Object,
-    required: true
-  }
-})
+const props = defineProps<{
+  message: ChatMessage
+}>()
 
 const messageClass = computed(() => {
   return props.message.role === 'user' ? 'user-message' : 'ai-message'

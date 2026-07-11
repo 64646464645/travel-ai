@@ -75,25 +75,33 @@
     </div>
   </div>
 </template>
-<script setup>
+<script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { post } from '../utils/request';
 import SpotItem from '../components/SpotItem.vue';
 import BudgetTable from '../components/BudgetTable.vue';
+import type { TravelPlan } from '../types'
 
 const route = useRoute();
 const router = useRouter();
 
 const isLoading = ref(true);
-const formData = reactive({
+
+interface FormData {
+  city: string
+  budget: string
+  days: string
+}
+
+const formData = reactive<FormData>({
   city: '',
   budget: '',
   days: ''
 });
-const tripData = ref({})
-const activeDays = ref([]);
-const errorMst = ref('');
+const tripData = ref<TravelPlan | null>(null)
+const activeDays = ref<number[]>([]);
+const errorMsg = ref('');
 const onBack = () => {
   router.back();
 };
@@ -107,14 +115,14 @@ const goToChat = () => {
     })
 }
 const fetchTripData = async () => { 
-  const res = await post('/recommend', formData).then(res => { 
+  const res = await post<TravelPlan>('/recommend', formData as unknown as Record<string, unknown>).then(res => { 
     console.log(res)
     if (res && res.success) {
       isLoading.value = true;
       tripData.value = res;
     } else {
       isLoading.value = false;
-      errorMst.value = res.error;
+      errorMsg.value = (res as unknown as Record<string, unknown>).error as string || '请求失败';
     }
   }).catch(err => { 
     console.log(err)
@@ -123,9 +131,9 @@ const fetchTripData = async () => {
   })
 };
 onMounted(() => {
-  formData.city = route.query.city;
-  formData.budget = route.query.budget;
-  formData.days = route.query.days;
+  formData.city = String(route.query.city ?? '');
+  formData.budget = String(route.query.budget ?? '');
+  formData.days = String(route.query.days ?? '');
 
   if (formData.city && formData.budget && formData.days) {
     fetchTripData();

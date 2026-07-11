@@ -38,16 +38,23 @@
     </van-popup>
   </div>
 </template>
-<script setup>
-import { reactive , ref} from 'vue';
+<script setup lang="ts">
+import { reactive, ref } from 'vue';
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
 
 const router = useRouter()
-const formData = reactive({
+
+interface FormData {
+  city: string
+  budget: number | undefined
+  days: number | undefined
+}
+
+const formData = reactive<FormData>({
   city: '',
-  budget: null,
-  days: null
+  budget: undefined,
+  days: undefined
 })
 const showCityPicker = ref(false)
 const isLoading = ref(false)
@@ -60,7 +67,7 @@ const allCities = [
 ]
 const cityColumns = allCities.map(city => ({ text: city, value: city }))
 
-const handleCityConfirm = ({ selectedOptions }) => {
+const handleCityConfirm = ({ selectedOptions }: { selectedOptions: { value: string }[] }) => {
   formData.city = selectedOptions[0]?.value ?? ''
   showCityPicker.value = false
 }
@@ -75,28 +82,19 @@ const handleSubmit = () => {
   isLoading.value = true
   // 判断目的地是否为空
   if (!formData.city) {
-    showToast({
-      title: '请选择目的地',
-      icon: 'none'
-    })
+    showToast('请选择目的地')
     isLoading.value = false
     return
   }
   // 判断预算
   if (!formData.budget || formData.budget < 100) {
-    showToast({
-      title: '预算不能低于100元',
-      icon: 'none'
-    })
+    showToast('预算不能低于100元')
     isLoading.value = false
     return
   }
   // 判断天数
   if (!formData.days || formData.days < 1 || formData.days > 30) {
-    showToast({
-      title: '天数必须在1到30天之间',
-      icon: 'none'
-    })
+    showToast('天数必须在1到30天之间')
     isLoading.value = false
     return
   } 

@@ -3,7 +3,7 @@
     <van-nav-bar 
       title="我的" 
       left-text="" 
-      left-arrow="false"
+      :left-arrow="false"
     />
     
     <!-- 用户信息区域 -->
@@ -76,7 +76,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 import { showToast } from 'vant'
 

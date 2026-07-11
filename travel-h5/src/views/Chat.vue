@@ -51,25 +51,26 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { useRouter, useRoute } from 'vue-router';
 import { ref, onMounted } from 'vue';
 import { fetchStream } from '../utils/request';
 import { showToast } from 'vant';
 import ChatBubble from '../components/ChatBubble.vue'
 import { useSmartScroll } from '../composables/useSmartScroll'
+import type { ChatMessage } from '../types'
 
 const router = useRouter();
-const messages = ref([]);
+const messages = ref<ChatMessage[]>([]);
 const quickQuestions = ref([
   '北京有哪些必去的景点？',
   '上海美食推荐',
   '成都三日游攻略',
   '如何选择旅行保险？'
 ])
-const chatContainer = ref(null);
+const chatContainer = ref<HTMLElement | null>(null);
 const { throttledScrollToBottom, resetAutoScroll, scrollToBottom } = useSmartScroll(chatContainer)
-const handleClickTag = (question) => {
+const handleClickTag = (question: string) => {
   inputMessage.value = question
   sendMessage()
 }
@@ -84,7 +85,7 @@ const sendMessage = () => {
   inputMessage.value = ''
   fetchAIResponse(msg)
 }
-const fetchAIResponse = (userMsg) => { 
+const fetchAIResponse = (userMsg: string) => { 
   isStreaming.value = true
   messages.value.push({
     id: Date.now() + 1,
@@ -95,7 +96,7 @@ const fetchAIResponse = (userMsg) => {
 
   let fullResponse = ''
 
-  fetchStream('chat', { message: userMsg }, (chunk) => {
+  fetchStream('chat', { message: userMsg }, (chunk: string) => {
       fullResponse += chunk ?? ''
       const lastMsg = messages.value[messages.value.length - 1]
 
@@ -106,7 +107,7 @@ const fetchAIResponse = (userMsg) => {
     }, () => {
       isStreaming.value = false
       scrollToBottom()
-    }, (errMsg) => {
+    }, (errMsg: string) => {
       const lastMsg = messages.value[messages.value.length - 1]
       if (lastMsg && lastMsg.role === 'ai') {
         lastMsg.content = `抱歉，AI发生错误：${errMsg}`
@@ -117,7 +118,7 @@ const fetchAIResponse = (userMsg) => {
     }
   )
 }
-const addUserMessage = (content) => { 
+const addUserMessage = (content: string) => { 
   messages.value.push({
     id: Date.now(),
     role: 'user',

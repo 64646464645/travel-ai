@@ -1,6 +1,6 @@
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
-const active = ref(0)
+const active = ref<number>(0)
 </script>
 
 <template>

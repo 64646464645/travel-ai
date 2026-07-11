@@ -1,4 +1,4 @@
-import { ref, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, nextTick, onMounted, onUnmounted, type Ref } from 'vue'
 import {
   SCROLL_BOTTOM_THRESHOLD,
   SCROLL_THROTTLE_MS,
@@ -8,12 +8,12 @@ import {
 import { throttle } from '../utils/throttle'
 
 /** 容器底部剩余可滚动距离（px） */
-function getDistanceFromBottom(el) {
+function getDistanceFromBottom(el: HTMLElement): number {
   return el.scrollHeight - el.scrollTop - el.clientHeight
 }
 
 /** 是否在「底部附近」，用于判定用户是否主动滚回底部 */
-function isNearBottom(el) {
+function isNearBottom(el: HTMLElement): boolean {
   return getDistanceFromBottom(el) <= SCROLL_BOTTOM_THRESHOLD
 }
 
@@ -25,7 +25,7 @@ function isNearBottom(el) {
  * - 用距底阈值检测用户回到底部（恢复自动滚动）
  * - 双层节流分别约束 scroll 监听与程序滚底频率
  */
-export function useSmartScroll(containerRef) {
+export function useSmartScroll(containerRef: Ref<HTMLElement | null>) {
   /** 是否允许自动滚底，暴露给 UI 层（如「回到底部」按钮） */
   const isAutoScrollEnabled = ref(true)
 
@@ -36,20 +36,18 @@ export function useSmartScroll(containerRef) {
 
   /**
    * 滚到底部
-   * @param {boolean} force - true 时忽略锁定状态（用户发消息等场景）
+   * @param force - true 时忽略锁定状态（用户发消息等场景）
    */
   const scrollToBottom = async (force = false) => {
     const el = containerRef.value
     if (!el) return
     if (!force && !isAutoScrollEnabled.value) return
 
-    // 等 Vue 渲染新 chunk 后再读 scrollHeight，否则滚不到真实底部
     await nextTick()
 
     isProgrammaticScroll = true
     el.scrollTop = el.scrollHeight
     lastScrollTop = el.scrollTop
-    // 等 scroll 事件派发完毕再解除标记，防止 onScroll 误判
     requestAnimationFrame(() => {
       isProgrammaticScroll = false
     })
@@ -75,7 +73,7 @@ export function useSmartScroll(containerRef) {
     if (!el || isProgrammaticScroll) return
 
     const currentTop = el.scrollTop
-    const delta = currentTop - lastScrollTop // 正=向下，负=向上
+    const delta = currentTop - lastScrollTop
     lastScrollTop = currentTop
 
     if (delta < -SCROLL_UP_DELTA_MIN) {
@@ -88,14 +86,12 @@ export function useSmartScroll(containerRef) {
     }
   }
 
-  /** 用户 scroll 事件节流，降低意图判定频率 */
   const throttledOnScroll = throttle(onScroll, SCROLL_THROTTLE_MS)
 
   onMounted(() => {
     const el = containerRef.value
     if (!el) return
     lastScrollTop = el.scrollTop
-    // passive 告知浏览器不会 preventDefault，提升移动端滚动性能
     el.addEventListener('scroll', throttledOnScroll, { passive: true })
   })
 

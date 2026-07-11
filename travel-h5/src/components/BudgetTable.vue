@@ -16,31 +16,26 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
+import type { BudgetBreakdown } from '../types'
 
-const props = defineProps({
-  data: {
-    type: Object,
-    default: () => ({})
-  },
-  totalBudget: {
-    type: [Number, String],
-    default: 0
-  }
-})
+const props = defineProps<{
+  data?: BudgetBreakdown
+  totalBudget?: number | string
+}>()
 
 const budgetItems = computed(() => {
   return {
-    accommodation: props.data.accommodation || 0,
-    food: props.data.food || 0,
-    transportation: props.data.transportation || 0,
-    tickets: props.data.tickets || 0,
-    other: props.data.other || 0
+    accommodation: props.data?.accommodation || 0,
+    food: props.data?.food || 0,
+    transportation: props.data?.transportation || 0,
+    tickets: props.data?.tickets || 0,
+    other: props.data?.other || 0
   }
 })
 
-const labelMap = {
+const labelMap: Record<string, string> = {
   accommodation: '住宿',
   food: '餐饮',
   transportation: '交通',
@@ -48,7 +43,7 @@ const labelMap = {
   other: '其他'
 }
 
-const getLabel = (key) => {
+const getLabel = (key: string): string => {
   return labelMap[key] || key
 }
 </script>
