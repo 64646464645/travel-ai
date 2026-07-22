@@ -1,6 +1,7 @@
 import { HumanMessage } from "@langchain/core/messages"
 import { createLLM } from "./llmClient.js"
 import { z } from "zod"
+import { jsonrepair } from "jsonrepair"
 
 // ========== Zod 数据模型 ==========
 
@@ -55,10 +56,14 @@ export type BudgetBreakdown = z.infer<typeof BudgetBreakdownSchema>
 class RecommendService {
   private llm: ReturnType<ReturnType<typeof createLLM>['withStructuredOutput']>
 
+  /** 降级 LLM：不带结构化输出，用于 jsonrepair 容错链路 */
+  private fallbackLLM: ReturnType<typeof createLLM>
+
   constructor() {
     this.llm = createLLM().withStructuredOutput(TravelPlanSchema, {
-      method: "jsonMode",
+      method: "functionCalling",
     })
+    this.fallbackLLM = createLLM()
   }
 
   /**
@@ -71,15 +76,54 @@ class RecommendService {
 
     const messages = this.getTravelPrompt(city, budget, days)
 
+    // 主链路：function calling 结构化输出
     try {
       const result = await this.llm.invoke(messages)
       return result as TravelPlan
+    } catch {
+      // 结构化输出失败，走 jsonrepair 容错降级
+      return this.fallbackRecommend(messages)
+    }
+  }
+
+  /**
+   * 降级链路：原始 LLM 输出 → jsonrepair 修复 → Zod 解析
+   */
+  private async fallbackRecommend(
+    messages: HumanMessage[],
+  ): Promise<TravelPlan | { success: false; error: string }> {
+    try {
+      const raw = await this.fallbackLLM.invoke(messages)
+      const rawText = typeof raw.content === 'string' ? raw.content : JSON.stringify(raw.content)
+
+      // 提取 JSON（去除 markdown 代码块标记）
+      const jsonText = this.extractJSON(rawText)
+
+      // jsonrepair 修复常见格式错误
+      const repaired = jsonrepair(jsonText)
+
+      // Zod 校验
+      const parsed = TravelPlanSchema.parse(JSON.parse(repaired))
+      return parsed
     } catch (error) {
       return {
         success: false,
-        error: (error as Error).message
+        error: (error as Error).message,
       }
     }
+  }
+
+  /** 从 LLM 原始输出中提取 JSON（去除 ```json ... ``` 包裹） */
+  private extractJSON(text: string): string {
+    const match = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+    if (match) return match[1]
+    // 尝试截取第一个 { 到最后一个 } 之间的内容
+    const start = text.indexOf('{')
+    const end = text.lastIndexOf('}')
+    if (start !== -1 && end !== -1 && end > start) {
+      return text.slice(start, end + 1)
+    }
+    return text
   }
 
   /** 构造给 LLM 的 prompt */
