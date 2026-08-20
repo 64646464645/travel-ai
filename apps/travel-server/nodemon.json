@@ -1,0 +1,12 @@
+{
+  "watch": ["src", "../../packages/shared/dist"],
+  "ext": "ts,json,js",
+  "ignore": [
+    "node_modules",
+    "dist",
+    "public",
+    ".git"
+  ],
+  "delay": 500,
+  "exec": "tsx src/index.ts"
+}
