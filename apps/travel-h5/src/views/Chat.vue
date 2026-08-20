@@ -5,8 +5,12 @@
         title="AI 旅游助手"
         left-text="返回"
         left-arrow
-        @click="router.back()"
->
+        @click-left="router.back()"
+      >
+        <template #right>
+          <span class="nav-action" @click="startNewSession">新建</span>
+          <span class="nav-action" @click="goToSessions">历史</span>
+        </template>
       </van-nav-bar>
     </div>
     <div ref="chatContainer" class="chat-container">
@@ -54,11 +58,11 @@
 <script setup lang="ts">
 import { useRouter, useRoute } from 'vue-router';
 import { ref, onMounted } from 'vue';
-import { fetchStream } from '../utils/request';
+import { fetchStream, get } from '../utils/request';
 import { showToast } from 'vant';
 import ChatBubble from '../components/ChatBubble.vue'
 import { useSmartScroll } from '../composables/useSmartScroll'
-import type { ChatMessage } from '../types'
+import type { ChatMessage, SessionMessage } from '../types'
 
 const router = useRouter();
 const messages = ref<ChatMessage[]>([]);
@@ -76,6 +80,7 @@ const handleClickTag = (question: string) => {
 }
 const inputMessage = ref('');
 const isStreaming = ref(false);
+const sessionId = ref('');
 const sendMessage = () => { 
   const msg = inputMessage.value.trim();
   if (!msg) {
@@ -96,7 +101,7 @@ const fetchAIResponse = (userMsg: string) => {
 
   let fullResponse = ''
 
-  fetchStream('chat', { message: userMsg }, (chunk: string) => {
+  fetchStream('chat', { message: userMsg, sessionId: sessionId.value || undefined }, (chunk: string) => {
       fullResponse += chunk ?? ''
       const lastMsg = messages.value[messages.value.length - 1]
 
@@ -104,7 +109,10 @@ const fetchAIResponse = (userMsg: string) => {
         lastMsg.content = fullResponse
       }
       throttledScrollToBottom()
-    }, () => {
+    }, (newSessionId?: string) => {
+      if (newSessionId) {
+        sessionId.value = newSessionId
+      }
       isStreaming.value = false
       scrollToBottom()
     }, (errMsg: string) => {
@@ -129,16 +137,47 @@ const addUserMessage = (content: string) => {
 }
 
 const route = useRoute()
-onMounted(() => { 
-  if(route.query.scene === 'detail' && route.query.city){
+const loadSessionMessages = async (sid: string) => {
+  try {
+    const res = await get<{ success: true; data: { sessionId: string; messages: SessionMessage[] } }>(`sessions/${sid}/messages`)
+    messages.value = res.data.messages.map((m) => ({
+      id: m.id,
+      role: m.role === 'assistant' ? 'ai' : 'user',
+      content: m.content,
+      timestamp: m.timestamp,
+    }))
+  } catch {
+    showToast('加载历史消息失败')
+  }
+}
+const startNewSession = () => {
+  sessionId.value = ''
+  messages.value = []
+  inputMessage.value = ''
+}
+const goToSessions = () => {
+  router.push('/sessions')
+}
+onMounted(async () => {
+  const sid = route.query.sessionId
+  if (typeof sid === 'string' && sid) {
+    sessionId.value = sid
+    await loadSessionMessages(sid)
+  } else if (route.query.scene === 'detail' && route.query.city) {
     inputMessage.value = `我想了解一下${route.query.city}的旅游景点`
- }
+  }
 })
 </script>
 
 <style scoped>
 .page-header{
   height:46px;
+}
+
+.nav-action {
+  margin-left: 16px;
+  font-size: 14px;
+  color: #1989fa;
 }
 
 .chat-page {

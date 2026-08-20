@@ -7,6 +7,7 @@ import {
 } from '@travel/shared'
 import recommendService from '../services/recommendService.js'
 import chatService from '../services/chatService.js'
+import { createSessionId } from '../services/memoryService.js'
 import { createStreamResponse } from '../utils/streamUtils.js'
 
 const router = express.Router()
@@ -55,11 +56,13 @@ router.post('/chat', async (req: Request<object, object, unknown>, res: Response
     })
   }
 
-  const { message }: ChatRequest = parsedBody.data
+  const { message, sessionId }: ChatRequest = parsedBody.data
+
+  const resolvedSessionId = sessionId?.trim() || createSessionId()
 
   const stream = createStreamResponse(res)
 
-  const result = await chatService.chat(message, (chunk: string) => {
+  const result = await chatService.chat(resolvedSessionId, message, (chunk: string) => {
     stream.send({ type: 'chunk', content: chunk })
   })
 
@@ -69,7 +72,7 @@ router.post('/chat', async (req: Request<object, object, unknown>, res: Response
     return
   }
 
-  stream.send({ type: 'end', content: result })
+  stream.send({ type: 'end', sessionId: resolvedSessionId })
   stream.end()
 })
 

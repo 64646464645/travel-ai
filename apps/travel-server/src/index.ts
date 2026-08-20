@@ -1,7 +1,9 @@
 import 'dotenv/config'
 import express, { type Request, type Response, type NextFunction } from 'express'
 import travelRouter from './routes/travel.js'
+import sessionsRouter from './routes/sessions.js'
 import cors from 'cors'
+import { initSchema } from './db/mysql.js'
 
 const app = express()
 const port = process.env.PORT
@@ -17,6 +19,7 @@ app.get('/api/heartbeat', (_req: Request, res: Response) => {
   })
 })
 
+app.use('/api/travel/sessions', sessionsRouter)
 app.use('/api/travel', travelRouter)
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
@@ -27,6 +30,10 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
     message: '服务器错误',
     timestamp: new Date().toISOString()
   })
+})
+
+initSchema().catch((err) => {
+  console.error('初始化数据库表失败', err)
 })
 
 app.listen(port, () => {

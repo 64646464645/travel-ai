@@ -2,9 +2,7 @@
   <div class="chat-bubble" :class="messageClass">
     <div class="bubble-content">
       <div class="message-text" v-if="message.role === 'user'">{{ message.content }}</div>
-      <div class="message-text ai-message" v-else>
-        <template v-if="message.content">{{ message.content }}</template>
-      </div>
+      <MarkdownContent v-else class="message-text ai-message" :content="message.content" />
     </div>
     <div class="message-time" v-if="showTime">{{ formatTime }}</div>
   </div>
@@ -13,6 +11,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { ChatMessage } from '../types'
+import MarkdownContent from './MarkdownContent.vue'
 
 const props = defineProps<{
   message: ChatMessage

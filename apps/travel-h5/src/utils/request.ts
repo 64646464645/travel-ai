@@ -27,6 +27,14 @@ export function get<T = unknown>(url: string, params?: Record<string, unknown>):
   return request.get(url, { params })
 }
 
+export function patch<T = unknown>(url: string, params?: Record<string, unknown>): Promise<T> {
+  return request.patch(url, params)
+}
+
+export function del<T = unknown>(url: string, params?: Record<string, unknown>): Promise<T> {
+  return request.delete(url, { params })
+}
+
 export async function fetchStream(
   url: string,
   data: Record<string, unknown>,
@@ -67,7 +75,7 @@ export async function fetchStream(
             if (jsonData.type === 'chunk') {
               if (payload) onChunk(payload)
             } else if (jsonData.type === 'end' || jsonData.done) {
-              onComplete?.(payload)
+              onComplete?.(jsonData.sessionId)
             } else if (jsonData.error) {
               onError?.(jsonData.error)
             }
