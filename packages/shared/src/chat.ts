@@ -14,10 +14,10 @@ export interface ChatMessage {
   timestamp: string
 }
 
-export interface SSEChunk {
-  type: 'chunk' | 'end'
-  content: string
-}
+export type SSEChunk =
+  | { type: 'chunk'; content: string }
+  | { type: 'end'; sessionId: string }
+  | { type: 'error'; error: string }
 
 // ===== 会话管理 =====
 

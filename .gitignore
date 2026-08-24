@@ -14,6 +14,9 @@ dist-ssr/
 *.log
 logs/
 
+# 本地向量索引
+data/
+
 # 编辑器 / 系统
 .DS_Store
 .idea/

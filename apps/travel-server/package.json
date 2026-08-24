@@ -13,23 +13,31 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^9.0.0",
     "@langchain/classic": "^1.0.34",
     "@langchain/core": "^1.1.48",
     "@langchain/openai": "^1.4.7",
+    "@langchain/textsplitters": "1.0.1",
     "@travel/shared": "*",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "jsonrepair": "^3.15.0",
+    "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.23.4",
     "nodemon": "^3.1.14",
     "uuid": "^14.0.0",
-    "zod": "^4.4.3"
+    "vectra": "0.15.0",
+    "zod": "^4.4.3",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.0.0",
+    "@types/swagger-ui-express": "^4.1.8",
     "@types/uuid": "^10.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"

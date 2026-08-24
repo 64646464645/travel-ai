@@ -9,8 +9,11 @@ import recommendService from '../services/recommendService.js'
 import chatService from '../services/chatService.js'
 import { createSessionId } from '../services/memoryService.js'
 import { createStreamResponse } from '../utils/streamUtils.js'
+import { requireAuth } from '../middleware/auth.js'
+import { ensureSession } from '../services/memoryService.js'
 
 const router = express.Router()
+router.use(requireAuth)
 
 router.post('/recommend', async (req: Request<object, object, unknown>, res: Response) => {
   const parsedBody = RecommendRequestSchema.safeParse(req.body)
@@ -26,7 +29,15 @@ router.post('/recommend', async (req: Request<object, object, unknown>, res: Res
 
   try {
     const result = await recommendService.recommend(city, budget, days)
-    return res.json(result)
+    if (!result.success) {
+      console.error('推荐接口降级失败', result.error)
+      return res.status(502).json({
+        success: false,
+        message: 'AI 服务调用失败',
+        timestamp: new Date().toISOString(),
+      })
+    }
+    return res.json({ success: true, data: result })
   } catch (err) {
     const error = err as Error
     console.error('推荐接口错误', error)
@@ -37,7 +48,7 @@ router.post('/recommend', async (req: Request<object, object, unknown>, res: Res
       ? error.message
       : isTimeout
         ? 'AI 服务响应超时，请稍后重试或缩短行程天数'
-        : (error.message ?? 'AI 服务调用失败')
+        : 'AI 服务调用失败'
     return res.status(status).json({
       success: false,
       message,
@@ -60,9 +71,19 @@ router.post('/chat', async (req: Request<object, object, unknown>, res: Response
 
   const resolvedSessionId = sessionId?.trim() || createSessionId()
 
+  try {
+    const owned = await ensureSession(resolvedSessionId, req.userId!, message)
+    if (!owned) {
+      return res.status(404).json({ success: false, message: '会话不存在', timestamp: new Date().toISOString() })
+    }
+  } catch (error) {
+    console.error('初始化会话失败', error)
+    return res.status(500).json({ success: false, message: '初始化会话失败', timestamp: new Date().toISOString() })
+  }
+
   const stream = createStreamResponse(res)
 
-  const result = await chatService.chat(resolvedSessionId, message, (chunk: string) => {
+  const result = await chatService.chat(resolvedSessionId, req.userId!, message, (chunk: string) => {
     stream.send({ type: 'chunk', content: chunk })
   })
 

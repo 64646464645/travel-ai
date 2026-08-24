@@ -82,6 +82,7 @@ import { post } from '../utils/request';
 import SpotItem from '../components/SpotItem.vue';
 import BudgetTable from '../components/BudgetTable.vue';
 import type { TravelPlan } from '../types'
+import type { ApiSuccess } from '@travel/shared'
 
 const route = useRoute();
 const router = useRouter();
@@ -115,20 +116,15 @@ const goToChat = () => {
     })
 }
 const fetchTripData = async () => { 
-  const res = await post<TravelPlan>('/recommend', formData as unknown as Record<string, unknown>).then(res => { 
-    console.log(res)
-    if (res && res.success) {
-      isLoading.value = true;
-      tripData.value = res;
-    } else {
-      isLoading.value = false;
-      errorMsg.value = (res as unknown as Record<string, unknown>).error as string || '请求失败';
-    }
-  }).catch(err => { 
-    console.log(err)
-  }).finally(() => { 
-    isLoading.value = false;
-  })
+  try {
+    const res = await post<ApiSuccess<TravelPlan>>('/recommend', formData as unknown as Record<string, unknown>)
+    tripData.value = res.data
+  } catch (err) {
+    const error = err as { response?: { data?: { message?: string } } }
+    errorMsg.value = error.response?.data?.message ?? '请求失败'
+  } finally {
+    isLoading.value = false
+  }
 };
 onMounted(() => {
   formData.city = String(route.query.city ?? '');

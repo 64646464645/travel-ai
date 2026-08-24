@@ -7,12 +7,14 @@ import {
   listSessions,
   renameSession,
 } from '../services/sessionService.js'
+import { requireAuth } from '../middleware/auth.js'
 
 const router = express.Router()
+router.use(requireAuth)
 
-router.post('/', async (_req: Request, res: Response) => {
+router.post('/', async (req: Request, res: Response) => {
   try {
-    const session = await createSession()
+    const session = await createSession(req.userId!)
     res.json({ success: true, data: session })
   } catch (error) {
     console.error('创建会话失败', error)
@@ -20,9 +22,9 @@ router.post('/', async (_req: Request, res: Response) => {
   }
 })
 
-router.get('/', async (_req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
-    const sessions = await listSessions()
+    const sessions = await listSessions(req.userId!)
     res.json({ success: true, data: sessions })
   } catch (error) {
     console.error('查询会话列表失败', error)
@@ -32,7 +34,10 @@ router.get('/', async (_req: Request, res: Response) => {
 
 router.get('/:sessionId/messages', async (req: Request<{ sessionId: string }>, res: Response) => {
   try {
-    const messages = await getSessionMessages(req.params.sessionId)
+    const messages = await getSessionMessages(req.params.sessionId, req.userId!)
+    if (!messages) {
+      return res.status(404).json({ success: false, message: '会话不存在', timestamp: new Date().toISOString() })
+    }
     res.json({ success: true, data: { sessionId: req.params.sessionId, messages } })
   } catch (error) {
     console.error('查询会话消息失败', error)
@@ -51,7 +56,7 @@ router.patch('/:sessionId', async (req: Request<{ sessionId: string }, object, u
   }
 
   try {
-    const session = await renameSession(req.params.sessionId, parsed.data.title)
+    const session = await renameSession(req.params.sessionId, req.userId!, parsed.data.title)
     if (!session) {
       return res.status(404).json({ success: false, message: '会话不存在', timestamp: new Date().toISOString() })
     }
@@ -64,7 +69,7 @@ router.patch('/:sessionId', async (req: Request<{ sessionId: string }, object, u
 
 router.delete('/:sessionId', async (req: Request<{ sessionId: string }>, res: Response) => {
   try {
-    const deleted = await deleteSession(req.params.sessionId)
+    const deleted = await deleteSession(req.params.sessionId, req.userId!)
     if (!deleted) {
       return res.status(404).json({ success: false, message: '会话不存在', timestamp: new Date().toISOString() })
     }

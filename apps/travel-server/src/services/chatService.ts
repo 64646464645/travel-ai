@@ -1,17 +1,8 @@
 import { AIMessage, HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { createLLM } from "./llmClient.js"
-import {
-  appendMessage,
-  ensureSession,
-  getCompressionThreshold,
-  getEarliestMessages,
-  getMessageCount,
-  getRecentMessages,
-  getSummary,
-  getWindowSize,
-  updateSummary,
-  type MemoryMessage,
-} from "./memoryService.js"
+import { appendMessage, getRecentMessages, type MemoryMessage } from "./memoryService.js"
+import { searchMemory } from "./longTermMemoryService.js"
+import { enqueueMemoryWrite } from "./memoryWriteQueue.js"
 
 export type StreamCallback = (chunk: string) => void
 
@@ -21,6 +12,12 @@ export interface ChatResult {
   error?: string
 }
 
+/** 长期记忆滑动窗口：最近 3 轮（前 2 轮 + 当前轮）合并写入，其中前 2 轮共 4 条 */
+const LONG_TERM_PREVIOUS_MESSAGES = 4
+
+/** 检索查询拼接的近期上下文：最近 1 轮对话原文（2 条） */
+const QUERY_CONTEXT_MESSAGES = 2
+
 class ChatService {
   private llm: ReturnType<typeof createLLM>
 
@@ -28,10 +25,13 @@ class ChatService {
     this.llm = createLLM()
   }
 
-  async chat(sessionId: string, message: string, streamCallback?: StreamCallback): Promise<ChatResult> {
-    await this.ensureSession(sessionId, message)
-
-    const history = await this.loadHistory(sessionId)
+  async chat(
+    sessionId: string,
+    userId: string,
+    message: string,
+    streamCallback?: StreamCallback,
+  ): Promise<ChatResult> {
+    const { messages: history, recentMessages } = await this.loadHistory(sessionId, userId, message)
     const messages = [
       new SystemMessage('你是一个友好的旅游助手，请用中文回答用户关于旅游的问题'),
       ...history,
@@ -52,7 +52,7 @@ class ChatService {
       }
 
       await this.saveMessages(sessionId, message, fullResponse)
-      await this.maybeCompress(sessionId)
+      this.enqueueLongTermMemory(sessionId, userId, message, fullResponse, recentMessages)
 
       return {
         success: true,
@@ -66,40 +66,48 @@ class ChatService {
     }
   }
 
-  private async ensureSession(sessionId: string, firstMessage: string): Promise<void> {
+  private async loadHistory(sessionId: string, userId: string, message: string) {
+    // 单次读取最近窗口内原文，供检索上下文与长期记忆快照复用
+    let recentMessages: MemoryMessage[] = []
     try {
-      await ensureSession(sessionId, firstMessage)
-    } catch (error) {
-      console.error('初始化会话失败', error)
-    }
-  }
-
-  private async loadHistory(sessionId: string) {
-    const messages: (SystemMessage | HumanMessage | AIMessage)[] = []
-
-    try {
-      const summary = await getSummary(sessionId)
-      if (summary.trim()) {
-        messages.push(
-          new SystemMessage(`以下是此前对话的摘要，请结合其中的关键信息回答用户问题：\n${summary}`)
-        )
-      }
-    } catch (error) {
-      console.error('读取会话摘要失败，忽略摘要', error)
-    }
-
-    try {
-      const history = await getRecentMessages(sessionId)
-      messages.push(
-        ...history.map((msg) =>
-          msg.role === 'user' ? new HumanMessage(msg.content) : new AIMessage(msg.content)
-        )
-      )
+      recentMessages = await getRecentMessages(sessionId)
     } catch (error) {
       console.error('读取短期记忆失败，退化为无记忆对话', error)
     }
 
-    return messages
+    const messages: (SystemMessage | HumanMessage | AIMessage)[] = []
+
+    // 长期记忆：按当前提问语义检索相关历史，拼入上下文（置于短期原文之前）
+    try {
+      const queryContext = recentMessages.slice(-QUERY_CONTEXT_MESSAGES)
+      const query = this.buildQuery(queryContext, message)
+      const memories = await searchMemory(userId, query)
+      if (memories.length > 0) {
+        const context = memories.map((m) => m.content).join('\n---\n')
+        messages.push(
+          new SystemMessage(
+            `以下是与此前对话语义相关的历史记忆，请结合其中的关键信息回答用户问题（若与当前问题无关可忽略）：\n${context}`
+          )
+        )
+      }
+    } catch (error) {
+      console.error('检索长期记忆失败，退化为无长期记忆', error)
+    }
+
+    // 短期记忆：最近若干条原文
+    messages.push(
+      ...recentMessages.map((msg) =>
+        msg.role === 'user' ? new HumanMessage(msg.content) : new AIMessage(msg.content)
+      )
+    )
+
+    return { messages, recentMessages }
+  }
+
+  private buildQuery(recent: MemoryMessage[], currentMessage: string): string {
+    const parts = recent.map((msg) => `${msg.role === 'user' ? '用户' : '助手'}：${msg.content}`)
+    parts.push(`用户：${currentMessage}`)
+    return parts.join('\n')
   }
 
   private async saveMessages(sessionId: string, userMessage: string, aiReply: string) {
@@ -111,60 +119,21 @@ class ChatService {
     }
   }
 
-  private async maybeCompress(sessionId: string): Promise<void> {
-    try {
-      const count = await getMessageCount(sessionId)
-      if (count < getCompressionThreshold()) {
-        return
-      }
-
-      const windowSize = getWindowSize()
-      const toCompress = count - windowSize
-      if (toCompress <= 0) {
-        return
-      }
-
-      const existingSummary = await getSummary(sessionId)
-      const earliest = await getEarliestMessages(sessionId, toCompress)
-      if (earliest.length === 0) {
-        return
-      }
-
-      const newSummary = await this.summarize(existingSummary, earliest)
-      if (!newSummary) {
-        return
-      }
-
-      await updateSummary(sessionId, newSummary)
-    } catch (error) {
-      console.error('压缩失败，本次跳过', error)
-    }
-  }
-
-  private async summarize(existingSummary: string, messages: MemoryMessage[]): Promise<string> {
-    const transcript = messages
-      .map((msg) => `${msg.role === 'user' ? '用户' : '助手'}：${msg.content}`)
-      .join('\n')
-
-    const parts = [
-      '你是一个旅游对话的摘要助手。请把下面的对话内容合并成一份简洁的中文摘要。',
-      '摘要需保留目的地、预算、天数、已定行程、用户偏好等关键信息，忽略寒暄与无关内容。',
+  private enqueueLongTermMemory(
+    sessionId: string,
+    userId: string,
+    message: string,
+    fullResponse: string,
+    recentMessages: MemoryMessage[],
+  ): void {
+    // 前 2 轮原文 + 当前轮（用户 + 助手）组成最近 3 轮快照，入队异步写入
+    const previous = recentMessages.slice(-LONG_TERM_PREVIOUS_MESSAGES)
+    const snapshot: MemoryMessage[] = [
+      ...previous,
+      { role: 'user', content: message },
+      { role: 'assistant', content: fullResponse },
     ]
-
-    if (existingSummary.trim()) {
-      parts.push('请合并已有摘要中的关键信息，输出一份全新的完整摘要。')
-      parts.push('')
-      parts.push(`【已有摘要】\n${existingSummary}`)
-    }
-
-    parts.push('')
-    parts.push(`【待合并对话】\n${transcript}`)
-    parts.push('')
-    parts.push('只输出摘要正文，不要标题、不要解释。')
-
-    const result = await this.llm.invoke([new HumanMessage(parts.join('\n'))])
-    const content = typeof result.content === 'string' ? result.content : ''
-    return content.trim()
+    enqueueMemoryWrite({ userId, sessionId, recentMessages: snapshot })
   }
 }
 

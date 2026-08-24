@@ -23,37 +23,29 @@ export function getWindowSize(): number {
   return Number.isFinite(size) && size > 0 ? Math.floor(size) : DEFAULT_WINDOW_SIZE
 }
 
-export function getCompressionThreshold(): number {
-  const configured = Number(process.env.COMPRESSION_THRESHOLD)
-  if (Number.isFinite(configured) && configured > 0) {
-    return Math.floor(configured)
-  }
-  return getWindowSize() * 2
-}
-
 /** 首次创建会话记录，title 由首条用户消息截断生成；已存在且为默认/空标题时更新 */
-export async function ensureSession(sessionId: string, firstMessage: string): Promise<void> {
+export async function ensureSession(
+  sessionId: string,
+  userId: string,
+  firstMessage: string,
+): Promise<boolean> {
   const title = firstMessage.trim().replace(/\s+/g, ' ').slice(0, TITLE_MAX_LENGTH)
   await pool.query(
-    `INSERT INTO sessions (session_id, title, summary) VALUES (?, ?, '')
-     ON DUPLICATE KEY UPDATE title = IF(title = '' OR title = ?, VALUES(title), title)`,
-    [sessionId, title, DEFAULT_SESSION_TITLE],
+    `INSERT IGNORE INTO sessions (session_id, user_id, title, summary) VALUES (?, ?, ?, '')`,
+    [sessionId, userId, title],
   )
-}
-
-export async function getSummary(sessionId: string): Promise<string> {
   const [rows] = await pool.query<RowDataPacket[]>(
-    'SELECT summary FROM sessions WHERE session_id = ?',
+    'SELECT user_id FROM sessions WHERE session_id = ?',
     [sessionId],
   )
-  return rows[0]?.summary ?? ''
-}
+  if (rows[0]?.user_id !== userId) return false
 
-export async function updateSummary(sessionId: string, summary: string): Promise<void> {
   await pool.query(
-    'UPDATE sessions SET summary = ? WHERE session_id = ?',
-    [summary, sessionId],
+    `UPDATE sessions SET title = IF(title = '' OR title = ?, ?, title)
+     WHERE session_id = ? AND user_id = ?`,
+    [DEFAULT_SESSION_TITLE, title, sessionId, userId],
   )
+  return true
 }
 
 export async function appendMessage(
@@ -69,15 +61,6 @@ export async function appendMessage(
     'UPDATE sessions SET updated_at = CURRENT_TIMESTAMP(3) WHERE session_id = ?',
     [sessionId],
   )
-}
-
-/** 统计会话中 user / assistant 原文数量 */
-export async function getMessageCount(sessionId: string): Promise<number> {
-  const [rows] = await pool.query<RowDataPacket[]>(
-    'SELECT COUNT(*) AS cnt FROM messages WHERE session_id = ? AND role IN (?, ?)',
-    [sessionId, 'user', 'assistant'],
-  )
-  return Number(rows[0]?.cnt ?? 0)
 }
 
 export async function getRecentMessages(
@@ -96,20 +79,4 @@ export async function getRecentMessages(
       content: row.content as string,
     }))
     .reverse()
-}
-
-/** 取会话中最早的 N 条原文（按时间正序） */
-export async function getEarliestMessages(
-  sessionId: string,
-  limit: number,
-): Promise<MemoryMessage[]> {
-  const [rows] = await pool.query<RowDataPacket[]>(
-    'SELECT role, content FROM messages WHERE session_id = ? ORDER BY id ASC LIMIT ?',
-    [sessionId, limit],
-  )
-
-  return rows.map((row) => ({
-    role: row.role as MessageRole,
-    content: row.content as string,
-  }))
 }

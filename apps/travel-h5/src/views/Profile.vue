@@ -1,168 +1,172 @@
 <template>
   <div class="profile-container">
-    <van-nav-bar 
-      title="我的" 
-      left-text="" 
-      :left-arrow="false"
-    />
-    
-    <!-- 用户信息区域 -->
-    <div class="user-info">
-      <van-image 
-        :src="userAvatar" 
-        round 
-        class="avatar"
-      />
-      <div class="user-details">
-        <h2 class="user-name">{{ userName }}</h2>
-        <p class="user-desc">欢迎使用智能旅游助手</p>
+    <van-nav-bar title="我的" :left-arrow="false" />
+
+    <section class="user-info">
+      <van-image v-if="auth.user?.avatarUrl" :src="auth.user.avatarUrl" round class="avatar" />
+      <div v-else class="avatar avatar-fallback" aria-hidden="true">
+        <van-icon name="user-o" />
       </div>
-    </div>
-    
-    <!-- 功能菜单 -->
-    <div class="menu-section">
-      <h3 class="menu-title">我的服务</h3>
+      <div class="user-details">
+        <h1 class="user-name">{{ displayName }}</h1>
+        <p class="user-account">{{ auth.user ? `账号：${auth.user.username}` : '游客' }}</p>
+      </div>
+    </section>
+
+    <section class="menu-section">
+      <h2 class="menu-title">我的服务</h2>
       <van-cell-group>
-        <van-cell 
-          title="我的收藏" 
-          is-link 
-          :icon="'star-o'"
-          @click="showToast('功能开发中')"
-        />
-        <van-cell 
-          title="历史记录" 
-          is-link 
-          :icon="'history'"
-          @click="goToSessions"
-        />
-        <van-cell 
-          title="设置" 
-          is-link 
-          :icon="'settings'"
-          @click="showToast('功能开发中')"
-        />
+        <van-cell title="我的收藏" is-link icon="star-o" @click="showToast('功能开发中')" />
+        <van-cell title="历史记录" is-link icon="history" @click="router.push('/sessions')" />
+        <van-cell title="设置" is-link icon="setting-o" @click="showToast('功能开发中')" />
       </van-cell-group>
-    </div>
-    
-    <!-- 关于我们 -->
-    <div class="menu-section">
-      <h3 class="menu-title">关于</h3>
+    </section>
+
+    <section class="menu-section">
+      <h2 class="menu-title">关于</h2>
       <van-cell-group>
-        <van-cell 
-          title="关于我们" 
-          is-link 
-          @click="showAboutDialog"
-        />
-        <van-cell 
-          title="版本信息" 
-          value="v1.0.0"
-        />
+        <van-cell title="关于我们" is-link @click="aboutDialogVisible = true" />
+        <van-cell title="版本信息" value="v1.0.0" />
       </van-cell-group>
+    </section>
+
+    <div v-if="auth.isAuthenticated" class="logout-area">
+      <van-button block plain type="danger" :loading="loggingOut" @click="handleLogout">
+        退出登录
+      </van-button>
     </div>
-    
-    <!-- 关于我们对话框 -->
-    <van-dialog 
-      v-model:show="aboutDialogVisible" 
-      title="关于我们"
-      show-cancel-button
-    >
+
+    <van-dialog v-model:show="aboutDialogVisible" title="关于我们" show-cancel-button>
       <div class="about-content">
         <p>智能旅游助手 v1.0.0</p>
-        <p class="mt-2">基于 AI 技术的智能旅游规划平台</p>
-        <p class="mt-2">为您提供个性化的旅游行程推荐和实时旅游咨询服务</p>
-        <p class="mt-4 text-center">© 2024 智能旅游助手</p>
+        <p class="about-line">基于 AI 技术的智能旅游规划平台</p>
       </div>
     </van-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { showToast } from 'vant'
+import { showConfirmDialog, showToast } from 'vant'
+import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
-
-// 用户信息
-const userAvatar = 'https://img.yzcdn.cn/vant/cat.jpeg'
-const userName = '游客'
-
-// 对话框状态
+const auth = useAuthStore()
 const aboutDialogVisible = ref(false)
+const loggingOut = ref(false)
+const displayName = computed(() => auth.user?.nickname || auth.user?.username || '游客')
 
-// 显示关于我们对话框
-const showAboutDialog = () => {
-  aboutDialogVisible.value = true
-}
+async function handleLogout(): Promise<void> {
+  try {
+    await showConfirmDialog({ title: '退出登录', message: '确定退出当前账号吗？' })
+  } catch {
+    return
+  }
 
-const goToSessions = () => {
-  router.push('/sessions')
+  loggingOut.value = true
+  try {
+    await auth.logout()
+    await router.replace('/login')
+  } catch {
+    showToast('退出登录失败')
+  } finally {
+    loggingOut.value = false
+  }
 }
 </script>
 
 <style scoped>
 .profile-container {
-  padding-bottom: 50px;
+  min-height: 100vh;
+  padding-bottom: 70px;
+  background: #f5f6f7;
 }
 
 .user-info {
   display: flex;
   align-items: center;
-  padding: 30px 20px;
-  background: linear-gradient(135deg, #1989fa 0%, #36cbcb 100%);
-  color: white;
+  padding: 28px 20px;
+  background: #1677ff;
+  color: #fff;
 }
 
 .avatar {
-  width: 80px;
-  height: 80px;
-  border: 3px solid rgba(255, 255, 255, 0.3);
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  box-sizing: border-box;
+}
+
+.avatar-fallback {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 34px;
 }
 
 .user-details {
-  margin-left: 20px;
+  min-width: 0;
+  margin-left: 16px;
+  text-align: left;
 }
 
 .user-name {
-  font-size: 20px;
+  overflow: hidden;
+  margin: 0;
+  color: #fff;
+  font-size: 21px;
   font-weight: 600;
-  margin-bottom: 5px;
+  line-height: 1.35;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.user-desc {
-  font-size: 14px;
-  opacity: 0.9;
+.user-account {
+  overflow: hidden;
+  margin-top: 5px;
+  font-size: 13px;
+  opacity: 0.88;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .menu-section {
-  margin-top: 15px;
-  background-color: white;
-  border-radius: 12px;
-  margin: 15px 10px 0;
-  overflow: hidden;
+  margin-top: 12px;
+  background: #fff;
 }
 
 .menu-title {
-  font-size: 14px;
+  margin: 0;
+  padding: 12px 16px 8px;
   color: #646566;
-  padding: 12px 15px;
-  border-bottom: 1px solid #f0f0f0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  letter-spacing: 0;
+}
+
+.logout-area {
+  padding: 20px 16px 0;
+}
+
+.logout-area :deep(.van-button) {
+  height: 44px;
+  border-radius: 8px;
 }
 
 .about-content {
+  padding: 18px 20px 24px;
+  color: #4b5563;
   text-align: center;
   line-height: 1.6;
 }
 
-.mt-2 {
+.about-line {
   margin-top: 8px;
-}
-
-.mt-4 {
-  margin-top: 16px;
-}
-
-.text-center {
-  text-align: center;
 }
 </style>
