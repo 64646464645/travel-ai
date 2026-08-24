@@ -3,6 +3,7 @@ import { createLLM } from "./llmClient.js"
 import { appendMessage, getRecentMessages, type MemoryMessage } from "./memoryService.js"
 import { searchMemory } from "./longTermMemoryService.js"
 import { enqueueMemoryWrite } from "./memoryWriteQueue.js"
+import type { MemorySearchResult } from "./longTermMemoryService.js"
 
 export type StreamCallback = (chunk: string) => void
 
@@ -10,6 +11,14 @@ export interface ChatResult {
   success: boolean
   reply?: string
   error?: string
+}
+
+export function buildLongTermMemoryMessage(memories: MemorySearchResult[]): SystemMessage | null {
+  if (memories.length === 0) return null
+  const context = memories.map((m) => m.content).join('\n---\n')
+  return new SystemMessage(
+    `以下是与此前对话语义相关的历史记忆，请结合其中的关键信息回答用户问题（若与当前问题无关可忽略）：\n${context}`
+  )
 }
 
 /** 长期记忆滑动窗口：最近 3 轮（前 2 轮 + 当前轮）合并写入，其中前 2 轮共 4 条 */
@@ -82,14 +91,8 @@ class ChatService {
       const queryContext = recentMessages.slice(-QUERY_CONTEXT_MESSAGES)
       const query = this.buildQuery(queryContext, message)
       const memories = await searchMemory(userId, query)
-      if (memories.length > 0) {
-        const context = memories.map((m) => m.content).join('\n---\n')
-        messages.push(
-          new SystemMessage(
-            `以下是与此前对话语义相关的历史记忆，请结合其中的关键信息回答用户问题（若与当前问题无关可忽略）：\n${context}`
-          )
-        )
-      }
+      const memoryMessage = buildLongTermMemoryMessage(memories)
+      if (memoryMessage) messages.push(memoryMessage)
     } catch (error) {
       console.error('检索长期记忆失败，退化为无长期记忆', error)
     }

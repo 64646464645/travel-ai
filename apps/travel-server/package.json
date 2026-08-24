@@ -8,7 +8,12 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "eval:memory": "tsx evaluation/cli.ts --mode single",
+    "eval:memory:matrix": "tsx evaluation/cli.ts --mode matrix",
+    "eval:memory:e2e": "tsx evaluation/cli.ts --mode e2e",
+    "test:eval": "node --import tsx --test \"evaluation/*.test.ts\"",
+    "type-check:eval": "tsc -p tsconfig.eval.json --noEmit"
   },
   "author": "",
   "license": "ISC",

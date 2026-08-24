@@ -21,6 +21,15 @@ export interface MemorySearchResult {
   sessionId: string
 }
 
+export type MemoryWriteStatus = 'indexed' | 'skipped' | 'failed'
+
+export interface MemoryWriteResult {
+  status: MemoryWriteStatus
+  chunkCount: number
+  durationMs: number
+  errorCode?: string
+}
+
 function getIndexDir(): string {
   const dir = process.env.VECTOR_INDEX_DIR || DEFAULT_INDEX_DIR
   return resolve(process.cwd(), dir)
@@ -78,14 +87,14 @@ export async function indexMemory(
   userId: string,
   sessionId: string,
   recentMessages: MemoryMessage[],
-): Promise<void> {
+): Promise<MemoryWriteResult> {
   const startedAt = Date.now()
   incCounter('write.total')
   try {
     const merged = mergeConversation(recentMessages)
     if (!merged.trim()) {
       incCounter('write.skipped')
-      return
+      return { status: 'skipped', chunkCount: 0, durationMs: Date.now() - startedAt }
     }
 
     const chunks = (await splitChunks(merged)).filter(
@@ -93,7 +102,7 @@ export async function indexMemory(
     )
     if (chunks.length === 0) {
       incCounter('write.skipped')
-      return
+      return { status: 'skipped', chunkCount: 0, durationMs: Date.now() - startedAt }
     }
     observe('write.chunkCount', chunks.length)
 
@@ -116,9 +125,17 @@ export async function indexMemory(
         } satisfies ChunkMetadata,
       })),
     )
+    incCounter('write.success')
+    return { status: 'indexed', chunkCount: chunks.length, durationMs: Date.now() - startedAt }
   } catch (error) {
     incCounter('write.failed')
     console.error('写入长期记忆失败，本次跳过', error)
+    return {
+      status: 'failed',
+      chunkCount: 0,
+      durationMs: Date.now() - startedAt,
+      errorCode: error instanceof Error && error.message.includes('QWEN_API_KEY') ? 'missing_embedding_key' : 'embedding_or_index_error',
+    }
   } finally {
     observe('write.latencyMs', Date.now() - startedAt)
   }
@@ -173,15 +190,33 @@ export async function searchMemory(
   }
 }
 
-/** 删除会话时清理该会话所有向量，失败仅记日志 */
-export async function deleteBySession(sessionId: string): Promise<void> {
+export interface DeleteBySessionResult {
+  sessionId: string
+  deletedCount: number
+  errorCode?: string
+}
+
+/** 删除会话时清理该会话所有向量；仍捕获异常不抛出以保持生产降级语义，但返回结构化结果供调用方观测 */
+export async function deleteBySession(sessionId: string): Promise<DeleteBySessionResult> {
   try {
     const index = await getIndex()
     const items = await index.listItemsByMetadata({ sessionId })
     if (items.length > 0) {
       await index.deleteItems(items.map((item) => item.id))
+      return { sessionId, deletedCount: items.length }
     }
+    // 索引中无匹配项：deletedCount 为 0 且无 errorCode，与删除失败明确区分
+    return { sessionId, deletedCount: 0 }
   } catch (error) {
     console.error('清理会话长期记忆失败，忽略', error)
+    return { sessionId, deletedCount: 0, errorCode: 'delete_failed' }
   }
+}
+
+/**
+ * 评测专用：使模块级索引单例失效，下一次 getIndex 会基于当前 VECTOR_INDEX_DIR 重建。
+ * 用于评测切换临时索引目录后强制绑定独立索引实例；生产调用方不应使用。
+ */
+export function resetMemoryIndexInstance(): void {
+  indexPromise = null
 }

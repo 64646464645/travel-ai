@@ -1,3 +1,8 @@
+---
+alwaysApply: false
+scene: rule_loading_reference
+---
+
 # 规则加载矩阵
 
 本矩阵定义规则的加载边界。仅 `core.md` 使用 `alwaysApply: true`；其他 Rule 使用 `alwaysApply: false`，由任务场景和核心规则路由决定是否读取。
@@ -12,10 +17,3 @@
 | `git-commit-message.md` | 否 | `git_message` | 用户明确要求创建或修改 Git commit | Conventional Commits 格式和提交范围 |
 | `spec-first-workflow.md` | 否 | `feature_implementation` | 中大型功能、跨模块需求、公共 API、数据库变更或边界不清 | 完整 Spec 的确认与实施顺序；轻量任务边界 |
 | `spec-lifecycle.md` | 否 | `feature_implementation` | 创建、确认、实现、阻塞、完成或废弃 Spec | Spec 状态机、三文档一致性和验收证据 |
-
-## 场景核对
-
-| 样本任务 | 必须加载 | 不要求加载 | 结论 |
-| -------- | -------- | ---------- | ---- |
-| 单文件 Vue 样式调整 | `core.md`；交付时按需读取 `verification-gate.md` | 数据库、环境、服务、提交和完整 Spec Rule | 可按轻量任务直接实施 |
-| 新增数据库索引 | `core.md`、`database-migration.md`、`spec-first-workflow.md`、`spec-lifecycle.md`、`verification-gate.md` | Git 提交规则；未启动服务时不要求服务关闭规则 | 必须进入完整 Spec 与迁移验证流程 |

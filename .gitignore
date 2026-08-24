@@ -17,6 +17,11 @@ logs/
 # 本地向量索引
 data/
 
+# 评测输出
+apps/travel-server/evaluation/reports/
+apps/travel-server/evaluation/.tmp/
+apps/travel-server/evaluation/datasets/
+
 # 编辑器 / 系统
 .DS_Store
 .idea/

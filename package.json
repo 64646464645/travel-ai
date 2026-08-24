@@ -6,7 +6,7 @@
     "predev": "npm run build -w @travel/shared",
     "dev": "concurrently -n shared,server,h5 -c yellow,blue,green \"npm run dev -w @travel/shared\" \"npm run dev -w travel-server\" \"npm run dev -w travel-h5\"",
     "build": "npm run build -w @travel/shared && npm run build -w travel-server && npm run build -w travel-h5",
-    "type-check": "npm run build -w @travel/shared && npm run type-check -w travel-h5 && npm run build -w travel-server"
+  "type-check": "npm run build -w @travel/shared && npm run type-check -w travel-h5 && npm run build -w travel-server && npm run type-check:eval -w travel-server"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"

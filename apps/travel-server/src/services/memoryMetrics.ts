@@ -9,6 +9,7 @@ export type CounterName =
   | 'retrieval.failed'
   | 'retrieval.hit'
   | 'write.total'
+  | 'write.success'
   | 'write.skipped'
   | 'write.failed'
 
