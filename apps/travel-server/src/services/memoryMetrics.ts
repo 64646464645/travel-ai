@@ -12,6 +12,15 @@ export type CounterName =
   | 'write.success'
   | 'write.skipped'
   | 'write.failed'
+  | 'gate.hit'
+  | 'gate.miss'
+  | 'extraction.total'
+  | 'extraction.success'
+  | 'extraction.failed'
+  | 'extraction.empty'
+  | 'coverage.overwrite'
+  | 'coverage.insert'
+  | 'coverage.overwriteFailed'
 
 export type HistogramName =
   | 'retrieval.recalledCount'
@@ -20,6 +29,7 @@ export type HistogramName =
   | 'write.chunkCount'
   | 'write.embeddingLatencyMs'
   | 'write.latencyMs'
+  | 'extraction.latencyMs'
 
 interface HistogramDef {
   labels: string[]
@@ -43,6 +53,7 @@ const HISTOGRAM_DEFS: Record<HistogramName, HistogramDef> = {
   'write.chunkCount': { labels: COUNT_LABELS, boundaries: COUNT_BOUNDARIES },
   'write.embeddingLatencyMs': { labels: LATENCY_LABELS, boundaries: LATENCY_BOUNDARIES },
   'write.latencyMs': { labels: LATENCY_LABELS, boundaries: LATENCY_BOUNDARIES },
+  'extraction.latencyMs': { labels: LATENCY_LABELS, boundaries: LATENCY_BOUNDARIES },
 }
 
 interface HistogramState extends HistogramDef {

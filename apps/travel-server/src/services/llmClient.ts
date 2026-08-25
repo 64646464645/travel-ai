@@ -2,7 +2,11 @@ import { ChatOpenAI } from "@langchain/openai"
 
 type Provider = "DEEPSEEK" | "QWEN"
 
-export function createLLM(): ChatOpenAI {
+export interface CreateLLMOptions {
+  temperature?: number
+}
+
+export function createLLM(options: CreateLLMOptions = {}): ChatOpenAI {
   const provider = process.env.PROVIDER as Provider | undefined
 
   let apiKey: string | undefined
@@ -31,7 +35,7 @@ export function createLLM(): ChatOpenAI {
     apiKey,
     configuration: { baseURL },
     model,
-    temperature: 0.4,
+    temperature: options.temperature ?? 0.4,
     timeout: Number(process.env.LLM_TIMEOUT_MS) || 120_000,
   })
 }

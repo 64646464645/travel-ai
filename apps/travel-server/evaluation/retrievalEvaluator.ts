@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { loadDataset, type MemoryEvalCase, type MemoryEvalDataset } from './schema.js'
 import { calculateMetrics, calculateDeletionMetrics, detectCrossUserLeak, foldSessions, passesQualityGate, type DeletionMetricsInput, type MetricsInput, type RankedChunk, type SessionRank } from './metrics.js'
 import { writeReport } from './report.js'
+import type { ExtractedFactDraft } from '../src/services/memoryExtraction.js'
 
 export const HARNESS_VERSION = 'v2'
 
@@ -47,9 +48,20 @@ export interface CaseEvalRecord {
 }
 
 interface CaseServices {
-  indexMemory: (userId: string, sessionId: string, messages: MemoryEvalCase['memories'][number]['messages']) => Promise<{ status: string; chunkCount: number; errorCode?: string }>
+  indexMemory: (userId: string, sessionId: string, messages: MemoryEvalCase['memories'][number]['messages'], options?: { facts?: ExtractedFactDraft[] }) => Promise<{ status: string; chunkCount: number; errorCode?: string }>
   searchMemory: (userId: string, query: string) => Promise<RankedChunk[]>
   deleteBySession: (sessionId: string) => Promise<{ sessionId: string; deletedCount: number; errorCode?: string }>
+}
+
+function evaluationFacts(item: MemoryEvalCase, sessionId: string): ExtractedFactDraft[] {
+  const facts = (item.category === 'preference-update' || item.expectedSessionIds.includes(sessionId)) && item.expectedFacts.length > 0
+    ? item.expectedFacts
+    : item.memories
+      .find((memory) => memory.sessionId === sessionId)
+    ?.messages
+    .filter((message) => message.role === 'user')
+    .map((message) => message.content) ?? []
+  return facts.map((content) => ({ type: item.category === 'preference-update' ? 'preference' : 'fact', content }))
 }
 
 function assertEmbeddingKey() {
@@ -118,7 +130,12 @@ async function evaluateCase(item: MemoryEvalCase, namespacedUserId: string, sess
 
   // 1. 写入本用例记忆（userId 使用命名空间 ID）
   for (const memory of item.memories) {
-    const write = await indexMemory(namespaceUserId(memory.userId, caseId), memory.sessionId, memory.messages)
+    const write = await indexMemory(
+      namespaceUserId(memory.userId, caseId),
+      memory.sessionId,
+      memory.messages,
+      { facts: evaluationFacts(item, memory.sessionId) },
+    )
     if (write.status === 'failed' || (write.status === 'skipped' && item.shouldRecall) || (item.shouldRecall && write.chunkCount === 0)) {
       return errorRecord(item, namespacedUserId, `写入失败: ${write.errorCode ?? write.status}`)
     }
@@ -199,7 +216,10 @@ async function evaluateCase(item: MemoryEvalCase, namespacedUserId: string, sess
     if (result.errorCode) {
       deleteSucceeded = false
       deleteErrors.push(`${memory.sessionId}:${result.errorCode}`)
-    } else if (result.deletedCount === 0 && !(item.category === 'deletion' && item.expectedSessionIds.includes(memory.sessionId))) {
+    } else if (result.deletedCount === 0 && !(
+      (item.category === 'deletion' && item.expectedSessionIds.includes(memory.sessionId))
+      || (item.category === 'preference-update' && !item.expectedSessionIds.includes(memory.sessionId))
+    )) {
       // 已写入记忆在清理时无匹配：非 deletion 阶段已删除的会话视为清理未确认
       deleteSucceeded = false
       deleteErrors.push(`${memory.sessionId}:unconfirmed`)
