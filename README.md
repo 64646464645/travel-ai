@@ -211,6 +211,101 @@ npm run start -w travel-server
 
 前端静态资源位于 `apps/travel-h5/dist`，可部署到任意支持静态文件托管的 Web 服务器，并通过 `VITE_API_BASE_URL` 指向服务端 API。
 
+## 移动端运行（Android）
+
+`apps/travel-h5` 的构建产物通过 Capacitor 打进 Android App，运行时使用设备自带的系统 WebView，不替换内核。选型理由见 `docs/adr/001-mobile-container.md`。
+
+### 环境要求
+
+| 依赖 | 要求 |
+| --- | --- |
+| Node.js | LTS（与 Web 端一致） |
+| JDK | 21（Android Gradle Plugin 要求） |
+| Android SDK | Platform 36 + Build-Tools；`sdk.dir` 写入 `apps/travel-h5/android/local.properties` |
+| Gradle | 无需单独安装，用工程自带 wrapper（8.14.3） |
+| 设备 | Android 7.0（API 24）及以上，WebView 版本 ≥ 90 |
+| adb | 随 platform-tools 提供，用于端口转发与真机调试 |
+
+`apps/travel-h5/android/local.properties`（含本机 SDK 路径）和 `android/app/src/main/assets/public/`（`cap sync` 生成的 Web 产物）都不入库。
+
+### 默认方式：本地 assets 打包
+
+页面资源打进 APK，从 APK 内加载，`origin` 为 `http://localhost`。
+
+```bash
+# 1. 构建前端（VITE_API_BASE_URL 在这一步被烧进产物）
+npm run build -w travel-h5
+
+# 2. 同步到原生工程
+cd apps/travel-h5
+npx cap sync android
+
+# 3. 编译安装
+cd android
+./gradlew assembleDebug          # Windows: gradlew.bat assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+**打包前必须确认 API 地址。** `VITE_API_BASE_URL` 为空时前端走相对路径 `/api`，依赖 Vite dev 代理；壳内没有代理，请求会打到 `http://localhost/api` 并失败。
+
+真机调试用 `.env.production.local`（已被 `*.local` 忽略，不入库）：
+
+```env
+VITE_API_BASE_URL=http://127.0.0.1:3300
+```
+
+配合 `adb reverse tcp:3300 tcp:3300` 把设备的 3300 转发到电脑。正式发布时必须替换为设备可访问的 HTTPS 地址并重新构建。
+
+### 可选方式：dev 直连
+
+让壳直接加载 Vite dev server，改代码即刷新，不必每次重装：
+
+```ts
+// apps/travel-h5/capacitor.config.ts —— 仅调试期临时添加，不要提交
+server: {
+  url: 'http://127.0.0.1:5173',
+  cleartext: true,
+}
+```
+
+配合 `adb reverse tcp:5173 tcp:5173`、`adb reverse tcp:3300 tcp:3300`，然后 `npx cap sync android` 并重装 APK。
+
+两点注意：
+
+1. 该模式下页面 `origin` 是 `http://127.0.0.1:5173`，与出包后的 `http://localhost` 不同，**验收不要在这个模式下做**。
+2. `server.url` 一旦被提交，出包产物会依赖开发机。用完立即删除并重新 `cap sync`。
+
+### 常见问题
+
+**白屏，或所有接口返回 404**
+
+`VITE_API_BASE_URL` 未配置。环境变量在构建时烧入，补好 `.env.production.local` 后必须重新 `npm run build -w travel-h5`。
+
+**控制台报 Mixed Content，请求被拦截**
+
+页面 `origin` 是 `https://localhost` 而后端是 `http://`。本项目已在 `capacitor.config.ts` 用 `androidScheme: 'http'` 规避；若改回 `https`，后端必须上 TLS，不要用 `allowMixedContent` 掩盖问题。
+
+**手机访问不到 dev server**
+
+按顺序排查：`adb devices` 是否有设备且状态为 `device`；`adb reverse --list` 是否有对应端口；USB 调试授权是否过期。不要依赖局域网 IP，多网卡、防火墙、AP 隔离都会让它在不同机器上时好时坏。
+
+**键盘弹出后底部被遮挡**
+
+`AndroidManifest.xml` 保持 `android:windowSoftInputMode="adjustResize"`；页面高度用 `100dvh`，底部内边距用 `--app-safe-bottom`。该变量来自 Capacitor `SystemBars` 注入的 `--safe-area-inset-bottom`——`env(safe-area-inset-*)` 在 WebView < 144 上恒为 0，不能单独依赖。
+
+**真机截图整块发黑**
+
+通常不是渲染问题。系统密码保险箱等 `FLAG_SECURE` 窗口会让 `adb exec-out screencap` 整块涂黑，此时用 DevTools 的 `Page.captureScreenshot` 能截到正常画面。判断方法见 `docs/webview-risks.md`。
+
+### 相关文档
+
+以下文档保留在本地工作区（`docs/` 未纳入版本库），供参与移动端改造的同学查阅：
+
+- 执行规格：`docs/plans/mobile-capacitor-plan.md`
+- 选型决策：`docs/adr/001-mobile-container.md`
+- WebView 风险验证：`docs/webview-risks.md`
+- 性能对照：`docs/performance.md`、`docs/baseline.md`
+
 ## 许可
 
 当前项目未声明开源许可证，使用和分发前请遵循项目维护者的授权约定。
