@@ -1,9 +1,19 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { getWebViewMetrics } from '@/utils/webviewMetrics'
 
 const route = useRoute()
 const showTabbar = computed(() => !route.meta.hideTabbar)
+
+onMounted(async () => {
+  try {
+    const metrics = await getWebViewMetrics()
+    if (metrics) console.info('[WebViewMetrics]', metrics)
+  } catch (error) {
+    console.warn('[WebViewMetrics] 采集失败', error)
+  }
+})
 </script>
 
 <template>

@@ -12,6 +12,17 @@ dist
 dist-ssr
 *.local
 
+# Capacitor Android 构建产物（android/ 工程本身需入库，仅忽略产物与本地配置）
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/.idea/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/capacitor-cordova-android-plugins/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
