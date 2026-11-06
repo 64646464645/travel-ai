@@ -11,6 +11,8 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AgentPlanCard: typeof import('./src/components/AgentPlanCard.vue')['default']
+    AgentTrace: typeof import('./src/components/AgentTrace.vue')['default']
     BudgetTable: typeof import('./src/components/BudgetTable.vue')['default']
     ChatBubble: typeof import('./src/components/ChatBubble.vue')['default']
     MarkdownContent: typeof import('./src/components/MarkdownContent.vue')['default']

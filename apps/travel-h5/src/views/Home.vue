@@ -20,6 +20,13 @@
             <van-button type="primary" size="large" round :loading="isLoading" @click="handleSubmit">开始规划</van-button>
           </van-cell-group>
       </div>
+      <div class="card agent-card" @click="router.push('/agent')">
+        <div class="agent-card-main">
+          <div class="section-title">智能行程 Agent</div>
+          <div class="agent-card-desc">先查真实地点与天气，再排行程并自动校验</div>
+        </div>
+        <van-icon name="arrow" color="#969799" />
+      </div>
       <div class="card"></div>
       <div class="card"></div>
     </div>
@@ -110,5 +117,19 @@ const handleSubmit = () => {
 <style scoped>
 .search-card {
   margin-bottom: 16px;
+}
+
+.agent-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.agent-card-desc {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #969799;
 }
 </style>

@@ -16,6 +16,7 @@
     <section class="menu-section">
       <h2 class="menu-title">我的服务</h2>
       <van-cell-group>
+        <van-cell title="我的行程" is-link icon="location-o" @click="router.push('/itineraries')" />
         <van-cell title="我的收藏" is-link icon="star-o" @click="showToast('功能开发中')" />
         <van-cell title="历史记录" is-link icon="history" @click="router.push('/sessions')" />
         <van-cell title="设置" is-link icon="setting-o" @click="showToast('功能开发中')" />

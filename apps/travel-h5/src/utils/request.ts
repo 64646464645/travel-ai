@@ -1,5 +1,13 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios'
-import type { ApiSuccess, AuthResponse, SSEChunk } from '@travel/shared'
+import type {
+  AgentEvent,
+  ApiSuccess,
+  AuthResponse,
+  ItineraryDetail,
+  ItineraryListResponse,
+  ItinerarySaveRequest,
+  SSEChunk,
+} from '@travel/shared'
 import { tokenStorage } from './tokenStorage'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
@@ -174,4 +182,108 @@ export async function fetchStream(
   } catch (error) {
     onError?.((error as Error).message)
   }
+}
+
+export interface AgentStreamOptions {
+  signal?: AbortSignal
+  onEvent: (event: AgentEvent) => void
+}
+
+/**
+ * Agent 运行流：服务端按 `data: {...}\n\n` 推送结构化事件。
+ * 与 fetchStream 的区别是要解析事件对象而不是纯文本增量，
+ * 因此这里自己拆帧，并把单帧解析失败视为可忽略噪声。
+ */
+export async function fetchAgentStream(
+  body: { message: string; sessionId?: string },
+  options: AgentStreamOptions,
+): Promise<void> {
+  const performFetch = async (retry: boolean): Promise<Response> => {
+    const response = await fetch(`${API_ROOT}/agent/runs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      body: JSON.stringify(body),
+      signal: options.signal,
+    })
+    if (response.status === 401 && retry) {
+      await refreshAccessTokenRequest()
+      return performFetch(false)
+    }
+    return response
+  }
+
+  const response = await performFetch(true)
+  if (!response.ok || !response.body) {
+    const payload = (await response.json().catch(() => null)) as { message?: string } | null
+    throw new Error(payload?.message ?? `请求失败 (${response.status})`)
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    buffer += decoder.decode(value, { stream: !done })
+    const frames = buffer.split('\n\n')
+    buffer = done ? '' : (frames.pop() ?? '')
+
+    for (const frame of frames) {
+      for (const line of frame.split('\n')) {
+        if (!line.startsWith('data: ')) continue
+        try {
+          options.onEvent(JSON.parse(line.slice(6)) as AgentEvent)
+        } catch {
+          // 忽略心跳等非 JSON 帧
+        }
+      }
+    }
+
+    if (done) break
+  }
+}
+
+export function cancelAgentRun(runId: string): Promise<unknown> {
+  return request.post(`/agent/runs/${runId}/cancel`) as unknown as Promise<unknown>
+}
+
+/** 统一响应信封：这些接口直接挂在 /api 下，不走 travelPath 前缀 */
+export interface ApiEnvelope<T> {
+  success: true
+  data: T
+}
+
+export function saveItineraryApi(payload: ItinerarySaveRequest): Promise<ApiEnvelope<ItineraryDetail>> {
+  return request.post('/itineraries', payload) as unknown as Promise<ApiEnvelope<ItineraryDetail>>
+}
+
+export function listItinerariesApi(params?: {
+  limit?: number
+  offset?: number
+  status?: 'draft' | 'saved'
+}): Promise<ApiEnvelope<ItineraryListResponse>> {
+  return request.get('/itineraries', { params }) as unknown as Promise<ApiEnvelope<ItineraryListResponse>>
+}
+
+export function getItineraryApi(id: string): Promise<ApiEnvelope<ItineraryDetail>> {
+  return request.get(`/itineraries/${id}`) as unknown as Promise<ApiEnvelope<ItineraryDetail>>
+}
+
+export function deleteItineraryApi(id: string): Promise<ApiEnvelope<unknown>> {
+  return request.delete(`/itineraries/${id}`) as unknown as Promise<ApiEnvelope<unknown>>
+}
+
+/** 把自动落库的草稿转成正式收藏 */
+export function confirmItineraryApi(id: string): Promise<ApiEnvelope<ItineraryDetail>> {
+  return request.patch(`/itineraries/${id}/confirm`) as unknown as Promise<ApiEnvelope<ItineraryDetail>>
+}
+
+/** 刷新恢复：取最近一条行程（草稿或已保存） */
+export function getLatestItineraryApi(sessionId?: string): Promise<ApiEnvelope<ItineraryDetail>> {
+  return request.get('/itineraries/latest', {
+    params: sessionId ? { sessionId } : undefined,
+  }) as unknown as Promise<ApiEnvelope<ItineraryDetail>>
 }

@@ -5,6 +5,9 @@ import { useAuthStore } from '../stores/auth'
 const routes = [
   { path: '/', name: 'home', component: () => import('@/views/Home.vue') },
   { path: '/chat', name: 'chat', component: () => import('@/views/Chat.vue'), meta: { requiresAuth: true } },
+  { path: '/agent', name: 'agent', component: () => import('@/views/Agent.vue'), meta: { requiresAuth: true } },
+  { path: '/itineraries', name: 'itineraries', component: () => import('@/views/Itineraries.vue'), meta: { requiresAuth: true } },
+  { path: '/itineraries/:id', name: 'itinerary-detail', component: () => import('@/views/ItineraryDetail.vue'), meta: { requiresAuth: true } },
   { path: '/sessions', name: 'sessions', component: () => import('@/views/Sessions.vue'), meta: { requiresAuth: true } },
   { path: '/profile', name: 'profile', component: () => import('@/views/Profile.vue'), meta: { requiresAuth: true } },
   { path: '/detail', name: 'detail', component: () => import('@/views/Detail.vue'), meta: { requiresAuth: true } },
