@@ -13,7 +13,12 @@
     "eval:memory:matrix": "tsx evaluation/cli.ts --mode matrix",
     "eval:memory:e2e": "tsx evaluation/cli.ts --mode e2e",
     "test:eval": "node --import tsx --test \"evaluation/*.test.ts\"",
-    "type-check:eval": "tsc -p tsconfig.eval.json --noEmit"
+    "type-check:eval": "tsc -p tsconfig.eval.json --noEmit",
+    "test:agent": "node --import tsx --test \"src/agent/*.test.ts\"",
+    "smoke:agent": "tsx scripts/agent-smoke.ts",
+    "type-check:test": "tsc -p tsconfig.test.json --noEmit",
+    "check:agent": "npm run type-check:test && npm run test:agent",
+    "e2e:itinerary": "node scripts/itinerary-e2e.mjs"
   },
   "author": "",
   "license": "ISC",
