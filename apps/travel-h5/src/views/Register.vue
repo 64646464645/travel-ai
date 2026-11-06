@@ -109,7 +109,8 @@ async function handleSubmit(): Promise<void> {
 
 <style scoped>
 .auth-page {
-  min-height: 100svh;
+  min-height: 100vh;
+  min-height: 100dvh;
   box-sizing: border-box;
   padding-bottom: 32px;
   background: #f4f7f8;

@@ -135,8 +135,9 @@ onMounted(loadSessions)
 <style scoped>
 .sessions-page {
   min-height: 100vh;
+  min-height: 100dvh;
   background: #f7f8fa;
-  padding-bottom: 50px;
+  padding-bottom: calc(50px + var(--app-safe-bottom));
 }
 
 .sessions-loading {

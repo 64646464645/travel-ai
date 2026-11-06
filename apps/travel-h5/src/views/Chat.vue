@@ -57,7 +57,7 @@
 
 <script setup lang="ts">
 import { useRouter, useRoute } from 'vue-router';
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { fetchStream, get } from '../utils/request';
 import { showToast } from 'vant';
 import ChatBubble from '../components/ChatBubble.vue'
@@ -167,6 +167,24 @@ onMounted(async () => {
     inputMessage.value = `我想了解一下${route.query.city}的旅游景点`
   }
 })
+
+// 键盘弹起时布局视口会被 adjustResize 压矮（768 → 471），
+// 此时底部 TabBar 会夹在输入框和键盘之间，用一个 body 标记把它收起来。
+// 阈值按屏幕高度而不是固定值，换机型或旋转后仍然成立。
+const syncImeState = () => {
+  const keyboardOpen = window.innerHeight < window.screen.height - 96
+  document.body.classList.toggle('ime-open', keyboardOpen)
+}
+
+onMounted(() => {
+  window.addEventListener('resize', syncImeState)
+  syncImeState()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', syncImeState)
+  document.body.classList.remove('ime-open')
+})
 </script>
 
 <style scoped>
@@ -184,6 +202,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   padding-bottom: 0px !important;
 }
 
@@ -191,7 +210,7 @@ onMounted(async () => {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
-  padding-bottom: 130px;
+  padding-bottom: calc(130px + var(--app-safe-bottom));
 }
 
 .chat-empty {
@@ -235,7 +254,9 @@ onMounted(async () => {
 
 .chat-input-area {
   position: fixed;
+  /* 50px = van-tabbar 高度；safe-area 由 van-tabbar 的 van-safe-area-bottom 撑出 */
   bottom: 50px;
+  bottom: calc(50px + var(--app-safe-bottom));
   left: 0;
   right: 0;
   background: #fff;
@@ -249,5 +270,11 @@ onMounted(async () => {
   background: #f7f8fa;
   border-radius: 20px;
   padding: 8px 16px;
+}
+
+/* 键盘弹起：TabBar 收起来，输入区贴到键盘上方 */
+body.ime-open .chat-input-area {
+  bottom: 0;
+  bottom: var(--app-safe-bottom);
 }
 </style>

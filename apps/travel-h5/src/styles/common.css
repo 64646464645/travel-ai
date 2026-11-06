@@ -1,7 +1,25 @@
+/* Capacitor 8 的 SystemBars 插件（insetsHandling 默认 "css"）会把真实安全区
+   注入成 --safe-area-inset-*（单位 px，键盘弹出时 bottom 为 0）。
+   而 env(safe-area-inset-*) 在 WebView < 144 上恒为 0（真机 138 实测），
+   所以统一走自定义属性，env() 只作为其它平台的兜底。 */
+:root {
+  --app-safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+}
+
+/* 兜底：style.css 是 Vite 脚手架残留，带 color-scheme: light dark，
+   深色下 :root 背景为 #16171d，视口异常时会露出黑边。这里强制回浅色。
+   注意必须用 :root 选择器，否则优先级低于脚手架里的 :root 而不生效。 */
+:root,
+body {
+  background-color: #f5f5f5;
+  color-scheme: light;
+}
+
 .page-container {
   min-height: 100vh;
+  min-height: 100dvh;
   background-color: #f5f5f5;
-  padding-bottom: 70px;
+  padding-bottom: calc(70px + var(--app-safe-bottom));
 }
 
 .page-header {
@@ -64,4 +82,15 @@
   justify-content: center;
   align-items: center;
   padding: 40px 0;
+}
+
+/* Vant 的 van-safe-area-bottom 用 env()，在 Android WebView 138 上取不到值，
+   这里改用 SystemBars 注入的真实值，和 .chat-input-area 的偏移保持一致。 */
+.van-tabbar.van-safe-area-bottom {
+  padding-bottom: var(--app-safe-bottom);
+}
+
+/* 键盘弹起时隐藏底部 TabBar（由 Chat.vue 在 resize 时切换该标记） */
+body.ime-open .van-tabbar {
+  display: none;
 }

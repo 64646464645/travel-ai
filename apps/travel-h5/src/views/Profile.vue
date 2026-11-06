@@ -79,7 +79,8 @@ async function handleLogout(): Promise<void> {
 <style scoped>
 .profile-container {
   min-height: 100vh;
-  padding-bottom: 70px;
+  min-height: 100dvh;
+  padding-bottom: calc(70px + var(--app-safe-bottom));
   background: #f5f6f7;
 }
 
