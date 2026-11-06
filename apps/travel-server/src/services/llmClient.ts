@@ -4,6 +4,8 @@ type Provider = "DEEPSEEK" | "QWEN"
 
 export interface CreateLLMOptions {
   temperature?: number
+  /** 单次调用最大输出 token；不设置时用提供商默认值（DeepSeek 仅 4096，长行程会被截断） */
+  maxTokens?: number
 }
 
 export function createLLM(options: CreateLLMOptions = {}): ChatOpenAI {
@@ -36,6 +38,7 @@ export function createLLM(options: CreateLLMOptions = {}): ChatOpenAI {
     configuration: { baseURL },
     model,
     temperature: options.temperature ?? 0.4,
+    ...(options.maxTokens ? { maxTokens: options.maxTokens } : {}),
     timeout: Number(process.env.LLM_TIMEOUT_MS) || 120_000,
   })
 }

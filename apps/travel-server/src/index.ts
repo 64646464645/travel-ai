@@ -4,6 +4,8 @@ import travelRouter from './routes/travel.js'
 import sessionsRouter from './routes/sessions.js'
 import authRouter from './routes/auth.js'
 import statsRouter from './routes/stats.js'
+import agentRouter from './routes/agent.js'
+import itinerariesRouter from './routes/itineraries.js'
 import cors from 'cors'
 import { initSchema } from './db/mysql.js'
 import swaggerUi from 'swagger-ui-express'
@@ -36,6 +38,8 @@ app.get('/api/heartbeat', (_req: Request, res: Response) => {
 
 app.use('/api/stats', statsRouter)
 
+app.use('/api/agent', agentRouter)
+app.use('/api/itineraries', itinerariesRouter)
 app.use('/api/travel/sessions', sessionsRouter)
 app.use('/api/travel', travelRouter)
 app.use('/api/auth', authRouter)

@@ -141,4 +141,42 @@ export async function initSchema(): Promise<void> {
   `)
 
   await backfillSessions()
+
+  // 行程快照：保存的是「某一版完整计划」，不随后续 schema 变化回填，
+  // 列表页需要的字段做冗余列，避免每次都要解析 JSON。
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS itineraries (
+      id VARCHAR(36) NOT NULL PRIMARY KEY,
+      user_id VARCHAR(36) NOT NULL,
+      session_id VARCHAR(36) NULL,
+      run_id VARCHAR(64) NULL,
+      title VARCHAR(64) NOT NULL DEFAULT '',
+      city VARCHAR(64) NOT NULL DEFAULT '',
+      start_date DATE NULL,
+      days INT NOT NULL DEFAULT 0,
+      total_budget DECIMAL(12,2) NOT NULL DEFAULT 0,
+      activity_count INT NOT NULL DEFAULT 0,
+      unverified_count INT NOT NULL DEFAULT 0,
+      schema_version INT NOT NULL DEFAULT 1,
+      plan JSON NOT NULL,
+      requirement JSON NULL,
+      issues JSON NULL,
+      created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+      KEY idx_itineraries_user_updated (user_id, updated_at),
+      CONSTRAINT fk_itineraries_user
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `)
+
+  // draft/saved 与来源消息是后加的：自动落库的草稿需要能标记状态、并在恢复时找回用户原话
+  if (!(await columnExists('itineraries', 'status'))) {
+    await pool.query("ALTER TABLE itineraries ADD COLUMN status VARCHAR(16) NOT NULL DEFAULT 'saved' AFTER title")
+  }
+  if (!(await columnExists('itineraries', 'source_message'))) {
+    await pool.query('ALTER TABLE itineraries ADD COLUMN source_message VARCHAR(500) NULL AFTER status')
+  }
+  if (!(await indexExists('itineraries', 'idx_itineraries_user_status'))) {
+    await pool.query('ALTER TABLE itineraries ADD KEY idx_itineraries_user_status (user_id, status, created_at)')
+  }
 }
