@@ -33,3 +33,7 @@ apps/travel-server/evaluation/datasets/
 
 # Trae 工作区配置
 .trae/
+
+# 本地工作目录与验证产出（含真机截图，仅本地保留）
+.workbuddy/
+docs/
